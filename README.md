@@ -13,7 +13,7 @@ Este proyecto implementa la ingesta, el *chunking*, la vectorización y la index
 | Base vectorial | Qdrant Cloud (free tier 1 GB), métrica coseno, vectores nombrados `gemini` (768 d) y `e5` (384 d) |
 | Embeddings | Gemini `gemini-embedding-2` (principal) · `intfloat/multilingual-e5-small` (línea base) |
 | Capa SQL | SQLite (agregaciones del dataset → fichas analíticas y metadatos) |
-| Chunking | `RecursiveCharacterTextSplitter` (LangChain) · 1.000 caracteres · 15 % de solapamiento |
+| Chunking | `RecursiveCharacterTextSplitter` (LangChain) · 1.500 caracteres · 15 % de solapamiento (elegido por experimento) |
 | Entorno | Google Colab / Jupyter |
 
 ## Estructura
@@ -47,14 +47,30 @@ Copie `.env.example` como `.env` y pegue los tres valores. En Colab hay dos opci
 ### 4. Ejecutar
 Abra el notebook con el botón **Abrir en Colab** de arriba, active **GPU T4** (opcional, acelera E5) y use **Entorno de ejecución → Ejecutar todas**. La primera corrida tarda entre 10 y 20 minutos, sobre todo por las pausas que respetan la cuota gratuita de Gemini. Las siguientes son mucho más rápidas porque los embeddings quedan en caché.
 
-Si una descarga de PDF falla, súbalo manualmente a `corpus/` con el nombre que indica la celda y vuelva a ejecutarla.
+El portal del MEN no responde a conexiones desde fuera de Colombia (Colab corre en EE. UU.). Por eso el notebook usa la copia de los PDF guardada en `corpus/` cuando la fuente oficial no está disponible.
 
 ## Seguridad
 - Las llaves se leen únicamente desde variables de entorno (`.env` o Secretos de Colab) y el notebook nunca imprime su valor.
 - `.env` está en `.gitignore`. Antes de publicar, verifique con `git status` que no aparezca.
 - Si una llave queda expuesta por error, revóquela desde la consola de Qdrant o de AI Studio y genere otra.
 
-## Resultados
+## Resultados de la corrida en Qdrant Cloud
+
+| Métrica (14 consultas de validación) | Gemini `gemini-embedding-2` · 768 d | E5 small · 384 d |
+|---|---|---|
+| Hit@1 | **1,00** | 0,93 |
+| Hit@3 | **1,00** | 1,00 |
+| MRR | **1,00** | 0,96 |
+| Coseno Top-1 medio | 0,805 | 0,891 |
+| Coseno en consultas fuera de dominio | 0,547 | 0,767 |
+| Latencia de búsqueda en Qdrant (mediana) | 221 ms | 220 ms |
+
+- **Corpus indexado:** 610 fragmentos. Reglamento CUN: 113 (45 págs.). Guía MEN 2015: 383 (227 págs.). Bienestar MEN 2016: 104 (55 págs.). Fichas del dataset UCI: 10.
+- **Espacio ocupado:** ~5,3 MB, el 0,5 % de la capa gratuita de 1 GB. La vectorización consumió unos 182.000 tokens de Gemini repartidos en 47 peticiones, sin salir del plan gratuito.
+- **Tamaño de chunk:** se compararon 500, 1.000 y 1.500 caracteres. El MRR fue 0,943, 0,946 y 0,964 respectivamente, y se eligió **1.500**.
+- **Umbral de relevancia calibrado:** coseno ≥ 0,645 (Gemini). Por debajo de ese valor, el RAG responde que no tiene información.
+
+### Archivos de resultados
 Al terminar, `resultados/` contiene `resumen_aca1.json`, `validacion_detalle.csv` y las figuras usadas en el póster: deserción por factor, selección del tamaño de chunk, Top-k de ejemplo y validación.
 
 ## Referencias principales
